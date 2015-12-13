@@ -1,0 +1,136 @@
+
+how to build using SMLNJ
+
+https://github.com/Ravenbrook/mlworks/pull/4
+http://mailman.ravenbrook.com/mailman/private/mlworks-discussion/2014-October/000069.html
+http://mailman.ravenbrook.com/mailman/private/mlworks-discussion/2015-December/000082.html
+http://mailman.ravenbrook.com/mailman/private/mlworks-discussion/2015-December/000083.html
+
+
+cd mlworks/src
+git checkout smlnj-110-bootstrap
+ln -s i386/ machine
+ln -s unix/ system
+ln -s ../system/_os.sml main
+ln -s ../system/__os.sml main
+
+make -C rts/ ARCH=I386 OS=Linux
+# this puts lots of .d files into rts/depend/I386/Linux/
+# and .o files into rts/obj/I386/Linux/
+# and libmlw-g.so  libmlw.so  main  main-g into rts/bin/I386/Linux/
+
+# then instructions in pull request say 
+# sml make/smlnj-boot.sml
+# which does
+
+use "make/nj_env.sml"; (* Simulate the runtime environment *)
+creates structure MLWTime :
+and val nj_environment = fn : string -> ?.T 
+
+use "make/change_nj.sml";
+creates val require = fn : string -> unit
+structure MLWorks : MLWORKS
+and structure General 
+
+use "make/dummy_make.sml";
+creates val require = fn : 'a -> unit
+val make = fn : string -> unit list
+
+SMLofNJ.exportML "make/smlnj-batch.img";
+creates make/smlnj-batch.img.x86-linux, doesn't seem to be needed later
+
+make "../main/__batch.sml";
+this "requires" a whole lot of stuff, then creates structure Batch_ : BATCH
+
+Batch_.obey ["-verbose", "-pervasive-dir", "pervasive/", "-compile-pervasive"];
+seems to do nothing - "Up to date"
+but if you do rm -rf ../objects first, it creates a lot, as below
+
+Batch_.obey ["-verbose",
+	     "-pervasive-dir", "pervasive/",
+	     "-project", "batch.mlp",
+	     "-configuration", "I386/Linux",
+	     "-target", "__batch.sml",
+	     "-build"];
+compiles a whole lot of sml files
+and puts .mo files into objects/I386/Linux/Release
+and puts .sml files into objects/I386/Linux/DEPEND
+(when repeated, seems to do nothing - "Up to date")
+
+then need to do 
+make -C images/I386/Linux/ OS=Linux ARCH=I386 batch.img
+puts batch.img  lexer.img  pervasive.img  typechecker.img into
+images/I386/Linux/
+
+make -C images/I386/Linux/ OS=Linux ARCH=I386 basis.img
+puts basis.img into images/I386/Linux/
+
+make -C images/I386/Linux/ OS=Linux ARCH=I386 tty.img
+fails, no objects/I386/Linux/Release/batch_common_export_filter.mo
+
+LD_LIBRARY_PATH=rts/bin/I386/Linux/  rts/bin/I386/Linux/main-g \
+  -MLWpass xx -load images/I386/Linux/batch.img xx \
+  -pervasive-dir pervasive/ -project interpreter.mlp \
+  -configuration I386/Linux -target interpreter.sml -build
+
+does more compiling sml files, creates inter alia
+objects/I386/Linux/Release/batch_common_export_filter.mo
+
+make -C images/I386/Linux/ OS=Linux ARCH=I386 tty.img
+fails, no objects/I386/Linux/Release/interpreter_export_filter.mo
+
+LD_LIBRARY_PATH=rts/bin/I386/Linux/  rts/bin/I386/Linux/main-g \
+  -MLWpass xx -load images/I386/Linux/batch.img xx \
+  -pervasive-dir pervasive/ -project xinterpreter.mlp \
+  -configuration I386/Linux -target xinterpreter.sml -build
+
+does more compiling sml files, creates inter alia
+objects/I386/Linux/Release/interpreter_export_filter.mo
+
+make -C images/I386/Linux/ OS=Linux ARCH=I386 tty.img
+succeeds, creates images/I386/Linux/tty.img
+make -C images/I386/Linux/ OS=Linux ARCH=I386 ttyb.img
+make -C images/I386/Linux/ OS=Linux ARCH=I386 gui.img
+make -C images/I386/Linux/ OS=Linux ARCH=I386 guib.img
+puts ttyb.img, gui.img, guib.img into images/I386/Linux/
+
+now, to run it
+LD_LIBRARY_PATH=/home/users/jeremy/mlworks/src/rts/bin/I386/Linux/ \
+  /home/users/jeremy/mlworks/src/rts/bin/I386/Linux/main-g -MLWpass xx \
+  -load /home/users/jeremy/mlworks/src/images/I386/Linux/ttyb.img xx
+or
+/home/users/jeremy/mlworks/src/rts/runtime-g -MLWpass xx \
+  -load /home/users/jeremy/mlworks/src/images/I386/Linux/ttyb.img xx
+or can delete -g in the above - the difference is to do with debugging
+
+trying to self boot - look at src/make/change_mlworks.sml 
+first need to unset require as reserved word, see 
+file:///home/users/jeremy/mlworks/doc/reference/html/RM_227.HTM
+file:///home/users/jeremy/mlworks/doc/reference/html/RM_190.HTM
+
+Shell.Options.set (Shell.Options.Language.requireReservedWord, false) ;
+
+use "make/change_mlworks.sml" ;
+use "make/old_dummy_make.sml" ; (* with old inputLine *)
+to avoid type error for TextIO.inputLine
+(* Moscow ML, MLWorks *) TextIO.inputLine : TextIO.instream -> string ;
+(* SMLNJ, PolyML *) TextIO.inputLine : TextIO.instream -> string option ;
+https://www.cs.princeton.edu/~appel/smlnj/basis/text-io.html 
+https://www.cs.cmu.edu/~rwh/introsml/core/io.htm
+http://www.itu.dk/people/sestoft/sml/sml-std-basis.html
+after fixing this, then do the Batch_.obey in smlnj_boot.sml, seem to work
+
+make "../main/__batch.sml"; (* finishes by entering debugger - q to exit it *)
+
+Batch_.obey ["-verbose", "-pervasive-dir", "pervasive/", "-compile-pervasive"];
+(after rm -rf ../objects, puts lots into objects/I386/Linux)
+then second Batch_.obey gives error,
+<batch compiler:options>: error: No such target as __batch.sml
+but doesn't seem to matter, can continue the rest, creates image files
+very similar but not identical to the original ones
+
+usage hints
+Shell.saveImage : (string * bool) -> unit ;
+Shell.saveImage (filename, standalone) ;
+(* works for standalone = false,
+  not sure how to use it for standalone = true *)
