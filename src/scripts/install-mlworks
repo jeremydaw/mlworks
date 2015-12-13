@@ -63,7 +63,7 @@
 # determine cwd so that licence text can be found
 
 script_dir=`dirname $0`
-cd $script_dir
+# cd $script_dir
 
 # Default show legal agreement -- want to turn this off during RPM building
 
@@ -91,9 +91,9 @@ if [ $silent -eq 0 ]; then
     page="$PAGER"
   fi
 
-  $page license.txt
+  # $page license.txt
 
-  answer=
+  answer=YES
   while [ -z "$answer" ] ; do
     echo " "
     echo "Do you accept the terms and conditions of this license agreement? (yes/no)"
@@ -149,11 +149,14 @@ MANDIR=$MLWORKSDIR/man
 EXAMPLEDIR=$MLWORKSDIR/examples
 ARCH=SPARC
 OS=SunOS
+ARCH=I386
+OS=Linux
 if [ "$OS" = "Irix" -o "$OS" = "Solaris" ]; then
   USE_STATIC=false
 else
   USE_STATIC=true
 fi
+USE_STATIC=false # Linux JED 
 if [ "$USE_STATIC" = "false" ]; then
   RUNTIME=main
 else
@@ -218,12 +221,15 @@ do
     toplevel)
       echo "$script: top-level items in $MLWORKSDIR"
       {
+	(
+	cd scripts && # JED
 	for f in README sml_97.ps bug-template.txt license.txt
 	do
 	  dest=$MLWORKSDIR/$f
 	  $rm $dest && $cp -p $f $dest
           $chmod_read_only $dest
 	done
+	)
       } ||
       {
         echo "$script: Failed to install top-level items"
@@ -242,15 +248,15 @@ do
 	fi &&
 	$rm $BINDIR/mlrun &&
 	$rm $BINDIR/$RUN_NAME &&
-        $cp bin/$ARCH/$OS/$RUNTIME $BINDIR/$RUN_NAME &&
+        $cp rts/bin/$ARCH/$OS/$RUNTIME $BINDIR/$RUN_NAME &&
         $ln $BINDIR/$RUN_NAME $BINDIR/mlrun &&
         $chmod_exec_read_only $BINDIR/$RUN_NAME &&
         # copy the license validator
         $rm $BINDIR/mlworks_license &&
-        $cp bin/$ARCH/$OS/mlworks_license $BINDIR/mlworks_license &&
+        $cp rts/bin/$ARCH/$OS/mlworks_license $BINDIR/mlworks_license &&
         $chmod_exec_read_only $BINDIR/mlworks_license &&  
         (
-          cd bin/$ARCH/$OS &&
+          cd rts/bin/$ARCH/$OS &&
           for f in *.xpm
           do
             dest=$MLWORKSDIR/bin/$f
@@ -261,7 +267,7 @@ do
 	if test "$OS" != SunOS
 	then
 	    $rm $BINDIR/$RUNLIB &&
-	    $cp bin/$ARCH/$OS/$RUNLIB $BINDIR/$RUNLIB &&
+	    $cp rts/bin/$ARCH/$OS/$RUNLIB $BINDIR/$RUNLIB &&
 	    $chmod_exec_read_only $BINDIR/$RUNLIB
 	fi 
       } ||
@@ -359,7 +365,7 @@ EOF
 	  $chmod_exec $MLWORKSDIR/pervasive/DEPEND
 	fi &&
 	(
-	  cd pervasive/$ARCH/$OS/DEPEND &&
+	  cd pervasive/DEPEND &&
 	  for f in *
 	  do
 	    dest=$MLWORKSDIR/pervasive/DEPEND/$f
@@ -368,7 +374,7 @@ EOF
 	  done
 	) &&
 	(
-	  cd pervasive/$ARCH/$OS &&
+	  cd pervasive &&
 	  for f in *.mo
 	  do
 	    dest=$MLWORKSDIR/pervasive/$f
@@ -461,7 +467,7 @@ EOF
           $chmod_exec $MLWORKSDIR/objects/Release
         fi &&
         (
-          cd objects/$ARCH/$OS/Release &&
+          cd utils/objects/$ARCH/$OS/Release &&
           for f in *
           do
             dest=$MLWORKSDIR/objects/Release/$f
@@ -475,7 +481,7 @@ EOF
           $chmod_exec $MLWORKSDIR/objects/DEPEND
         fi &&
         (
-          cd objects/$ARCH/$OS/DEPEND &&
+          cd utils/objects/$ARCH/$OS/DEPEND &&
           for f in *
           do
             dest=$MLWORKSDIR/objects/DEPEND/$f
@@ -547,7 +553,7 @@ EOF
           $chmod_exec $LIBDIR/emacs/etc
 	fi &&
 	(
-	  cd lib/emacs/etc/$ARCH/$OS &&
+	  cd emacs/etc &&
 	  for f in *
 	  do
 	    dest=$LIBDIR/emacs/etc/$f
@@ -555,7 +561,7 @@ EOF
 	  done
 	) &&
         (
-          cd lib/emacs/lisp &&
+          cd emacs/lisp &&
           for f in *
           do
 	    dest=$LIBDIR/emacs/lisp/`basename $f .in`
